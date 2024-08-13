@@ -9,8 +9,6 @@ contract Token {
 
     address private owner;
 
-    uint256 private supply;
-
     mapping(address owner => uint256) public balanceOf;
 
     mapping(uint256 tokenId => address) public ownerOf;
@@ -52,16 +50,22 @@ contract Token {
     );
 
     /// @notice Logs the message on unAuthorized access  
-    /// @param message the message to be sent in error
-    error unAuthorized(string message);
+    error unAuthorized();
 
     /// @notice Logs the message on getting zero address
-    /// @param message the message to be sent in error
-    error zeroAddress(string message);
+    error zeroAddress();
 
     /// @notice Log the id of the token when it is invalid
     /// @param tokenId the id of the provided token
     error inValidNFT(uint256 tokenId);
+
+    /// @notice Logs the address of the recepient where the token are going to be minted and the new _tokenId
+    /// @param _recepient the reciever address of the transaction
+    /// @param _tokenId the token to be sent in the transaction
+    event tokenMinted(
+        address indexed _recepient,
+        uint256 indexed _tokenId
+    );
 
     constructor(string memory _name, string memory _symbol) {
         name = _name;
@@ -69,9 +73,9 @@ contract Token {
         owner = msg.sender;
     }
 
-    /// @notice returns the total supply of the token
-    function totalSupply() view external returns(uint256) {
-        return supply;
+    modifier checkUnAuthorized(address add1,address add2) {
+        if(add1!=add2) revert unAuthorized();
+        _;
     }
 
     /// @notice safely transfer the token from the _from address to the _to address
@@ -103,10 +107,11 @@ contract Token {
         address _from,
         address _to,
         uint256 _tokenId
-    ) external payable {
-        if (_from == ownerOf[_tokenId])
-            revert unAuthorized("from is not equal to owner");
-        if (_to != address(0)) revert zeroAddress("address to is zero address");
+    )
+        external 
+        payable 
+        checkUnAuthorized(_from, ownerOf[_tokenId]){
+        if (_to != address(0)) revert zeroAddress();
         if (ownerOf[_tokenId] == address(0)) revert inValidNFT(_tokenId);
         ownerOf[_tokenId] = _to;
         balanceOf[_from]--;
@@ -132,10 +137,11 @@ contract Token {
     /// @notice approve the _approved address to send token on behalf of msg.sender
     /// @param _approved the address who is getting the approval for _tokendId
     /// @param _tokenId the id of the token
-    function approve(address _approved, uint256 _tokenId) external payable {
+    function approve(address _approved, uint256 _tokenId) 
+        external 
+        payable 
+        checkUnAuthorized(ownerOf[_tokenId], msg.sender){
         if (ownerOf[_tokenId] == address(0)) revert inValidNFT(_tokenId);
-        if (ownerOf[_tokenId] != msg.sender)
-            revert unAuthorized("You do not owned this token");
         approvals[_tokenId] = _approved;
         emit Approval(ownerOf[_tokenId], _approved, _tokenId);
     }
@@ -157,26 +163,27 @@ contract Token {
     /// @notice creating new tokens , can only be done by the deployer of the contract
     /// @param _owner the id of the token
     /// @param tokenId of the owner
-    function _mint(address _owner, uint256 tokenId) external {
-        if(msg.sender != owner) revert unAuthorized("Only the Deployer can mint new tokens");
+    function mint(address _owner, uint256 tokenId) external checkUnAuthorized(owner, msg.sender){
         ownerOf[tokenId] = _owner;
         balanceOf[_owner]++;
-        emit Transfer(address(0), _owner, tokenId);
+        emit tokenMinted(_owner, tokenId);
     }
 
     /// @notice set the price of the token in terms of "Coins", only the owner of the token can set the price
     /// @param tokenId the id of the token
     /// @param price the value of the price to be set on the token
-    function setPrice(uint256 tokenId,uint256 price) external {
-        if(msg.sender != ownerOf[tokenId]) revert unAuthorized("only the owner of the token can set the price");
+    function setPrice(uint256 tokenId,uint256 price) 
+        external 
+        checkUnAuthorized( ownerOf[tokenId], msg.sender){
         tokenPrice[tokenId] = price;
     }
 
     /// @notice destroying the existing tokens from the _owner address , can only be done by the deployer of the contract
     /// @param _owner the id of the token
     /// @param tokenId of the owner
-    function _burn(address _owner, uint256 tokenId) external {
-        if(msg.sender != owner) revert unAuthorized("Only the Deployer can burn tokens");
+    function burn(address _owner, uint256 tokenId) 
+        external 
+        checkUnAuthorized(_owner, msg.sender){
         delete ownerOf[tokenId];
         balanceOf[_owner]--;
         emit Transfer(address(0), _owner, tokenId);
